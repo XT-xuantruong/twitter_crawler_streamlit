@@ -3,7 +3,7 @@ name: Crawler CI/CD Pipeline
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   build-and-deploy:
