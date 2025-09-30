@@ -1,11 +1,13 @@
 import streamlit as st
 import os, json, uuid
 
-# mỗi session sinh ra 1 session_id duy nhất
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())[:8]  # ví dụ: ab12cd34
-
 def render_sidebar():
+    # đảm bảo mỗi session có id riêng
+    if "session_id" not in st.session_state:
+        st.session_state["session_id"] = str(uuid.uuid4())
+
+    session_id = st.session_state["session_id"]
+    COOKIE_TMP = f"tmp_cookies_{session_id}.json"
     st.sidebar.header("⚙️ Common Config")
 
     cookie_mode = st.sidebar.radio("Cookie input", ["Upload", "Paste"], index=0)

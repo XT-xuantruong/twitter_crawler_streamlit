@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+
 st.set_page_config(page_title="Twitter/X Crawler — Playwright", layout="wide")
 st.title("📡 Twitter/x Crawler — Playwright")
 
