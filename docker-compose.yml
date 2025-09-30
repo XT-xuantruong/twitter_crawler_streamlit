@@ -3,6 +3,7 @@ version: "3.9"
 services:
   crawler:
     build: .
+    image: ${DOCKER_USERNAME}/crawler_app:latest
     container_name: crawler_app
     restart: always
     env_file: .env
