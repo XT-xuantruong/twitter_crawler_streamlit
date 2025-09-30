@@ -1,34 +1,34 @@
 import streamlit as st
-import os, json
+import os, json, uuid
 
-COOKIE_TMP = "tmp_cookies_shared.json"
+# mỗi session sinh ra 1 session_id duy nhất
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())[:8]  # ví dụ: ab12cd34
 
 def render_sidebar():
-    st.sidebar.header("⚙️ Config chung")
+    st.sidebar.header("⚙️ Common Config")
 
-    cookie_mode = st.sidebar.radio("Cookie input", ["Path", "Upload", "Paste"], index=0)
-    cookies_path = None
+    cookie_mode = st.sidebar.radio("Cookie input", ["Upload", "Paste"], index=0)
+    # auto gán file theo session_id
+    cookies_path = f"tmp_cookies_{st.session_state.session_id}.json"
 
-    if cookie_mode == "Path":
-        cookies_path = st.sidebar.text_input("Cookies JSON path", value="cookies.json")
-    elif cookie_mode == "Upload":
+    if cookie_mode == "Upload":
         uploaded = st.sidebar.file_uploader("Upload cookies.json", type="json")
         if uploaded:
-            cookies_path = COOKIE_TMP
             with open(cookies_path, "wb") as f:
                 f.write(uploaded.read())
-            st.sidebar.success(f"Saved temporary cookies: {cookies_path}")
-    else:
+            st.sidebar.success(f"✅ Saved cookies for this session: {cookies_path}")
+
+    else:  # Paste
         pasted = st.sidebar.text_area("Paste cookies JSON", height=120)
         if pasted:
             try:
                 data = json.loads(pasted)
-                cookies_path = COOKIE_TMP
                 with open(cookies_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
-                st.sidebar.success(f"Saved temporary cookies: {cookies_path}")
+                st.sidebar.success(f"✅ Saved cookies for this session: {cookies_path}")
             except Exception:
-                st.sidebar.error("Invalid JSON")
+                st.sidebar.error("❌ Invalid JSON")
 
-    st.sidebar.caption("Nếu cookie hết hạn, export lại từ trình duyệt rồi upload/paste vào đây.")
+    st.sidebar.caption("If cookie expires, please export again from your browser and re-upload/paste.")
     return {"cookies_path": cookies_path}
