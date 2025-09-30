@@ -1,0 +1,6 @@
+.env
+/checkpoints
+/exports
+/__pycache__
+*.pyc
+tmp_cookies_shared.json
