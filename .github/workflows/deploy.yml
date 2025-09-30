@@ -67,6 +67,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd crawler_app
+            # Write docker-compose file
+            echo "${{ secrets.DOCKER_COMPOSE_FILE }}" > docker-compose.yml
 
             # Kiểm tra docker-compose file
             docker-compose config || exit 1
