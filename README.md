@@ -36,6 +36,7 @@ Built with **Python 3.11 + Streamlit + Playwright + SQLAlchemy + MySQL**.
 
 ## 🛠 Requirements
 
+- Linux
 - Python **3.11** (recommend Miniconda/Conda env).
 - Node.js & Chromium (required by Playwright).
 - MySQL (5.7+ or 8.x).
