@@ -37,6 +37,9 @@ WORKDIR /app
 # Copy runtime deps
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libodbc* /usr/lib/x86_64-linux-gnu/
+RUN DRIVER_PATH=$(find /opt/microsoft/msodbcsql18/lib64 -name "libmsodbcsql-*.so*" | head -n 1) \
+    && echo "[ODBC Driver 18 for SQL Server]\nDescription=Microsoft ODBC Driver 18 for SQL Server\nDriver=$DRIVER_PATH\nUsageCount=1" > /etc/odbcinst.ini
+    
 COPY . .
 
 ENV PYTHONUNBUFFERED=1 \
