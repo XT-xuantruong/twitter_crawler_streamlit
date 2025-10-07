@@ -1,34 +1,30 @@
 import streamlit as st
-from services.twitter_playwright import PlaywrightTwitterScraper
-from utils.io import df_to_csv_bytes
-from storage.db import save_records
+import pandas as pd
+from services.controller import TwitterCrawlerController
+from storage.db import init_db
 
-def render_search_tab(cookie_meta):
-    st.header("🔍 Twitter Search")
+def render_search_tab(cfg):
+    st.header("🔍 Twitter Search Crawler")
 
-    query = st.text_input("Nhập từ khoá tìm kiếm", value="fake news", key="search_query")
-    max_posts = st.number_input("Số lượng tối đa", min_value=10, max_value=2000, value=100, step=50, key="search_max")
-    headless = st.checkbox("Headless", value=True, key="search_headless")
+    query = st.text_input("Search query", placeholder="fake news, scam, AI, ...")
+    limit = st.number_input("Limit", min_value=10, max_value=1000, value=100, step=10)
+    start_btn = st.button("🚀 Start Crawl")
 
-    if st.button("🚀 Start Search", key="search_btn"):
-        print("Starting search with cookie:", cookie_meta.get("cookies_path"))
-        scraper = PlaywrightTwitterScraper(headless=headless, cookies_path=cookie_meta.get("cookies_path"))
-        dfs = []
-        for df, meta in scraper.search(query, limit=max_posts):
-            dfs.append(df)
+    # chọn tài khoản đang dùng (optional)
+    acc_names = [f"Account #{i+1}" for i in range(len(cfg["accounts"]))]
+    selected_acc = st.selectbox("Select account (optional)", ["Auto Rotate"] + acc_names)
 
-        if not dfs:
-            st.warning("❌ Không thu được dữ liệu.")
+    if start_btn:
+        if not query.strip():
+            st.warning("Please enter a search query.")
             return
 
-        final_df = dfs[-1]
-        st.success(f"✅ Thu được {len(final_df)} bài viết.")
-        st.dataframe(final_df)
+        init_db()
+        st.info(f"Starting search for **{query}** ...")
 
-        # Xuất CSV
-        csv_bytes = df_to_csv_bytes(final_df)
-        st.download_button("📥 Download CSV", data=csv_bytes, file_name="tweets_search.csv", mime="text/csv")
+        # chuẩn bị list accounts
+        accounts = cfg["accounts"]
+        controller = TwitterCrawlerController(cfg)
 
-        # Lưu DB
-        save_records(final_df, table_name="tweets")
-        st.info("💾 Dữ liệu đã lưu vào MySQL")
+        controller.run_full_pipeline(query, limit=limit)
+        st.success("✅ Crawl completed successfully!")
