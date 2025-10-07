@@ -1,14 +1,12 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Config:
-    # MySQL URL (đổi theo môi trường của bạn)
-    # ví dụ: mysql+pymysql://user:pass@localhost:3306/social_crawler?charset=utf8mb4
     MSSQL_URL = os.environ.get(
-        "MSSQL_URL"
-        # "mysql+pymysql://root:password@localhost:3306/social_crawler?charset=utf8mb4"
-    )
-
-    # user-agents
+        "SQL_URL"
+    )  # e.g., "mssql+pyodbc://sa:Password123@SERVER_IP,1433/DB?driver=ODBC+Driver+17+for+SQL+Server"
     USER_AGENTS = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
