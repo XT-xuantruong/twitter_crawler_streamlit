@@ -72,6 +72,23 @@ class TwitterCrawlerController:
         self.rate_limit_hits += 1
         if self.rate_limit_hits >= len(self.accounts):
             logger.error("🚫 All accounts are rate-limited! Entering cooldown mode...")
+
+            # 🧩 SAVE PROGRESS trước khi nghỉ cooldown
+            try:
+                if hasattr(self, "_pending_tweets") and self._pending_tweets:
+                    df_tweets = pd.DataFrame(self._pending_tweets)
+                    save_records(df_tweets, "tweets")
+                    logger.info(f"💾 Auto-saved {len(df_tweets)} pending tweets before cooldown.")
+                    self._pending_tweets.clear()
+
+                if hasattr(self, "_pending_replies") and self._pending_replies:
+                    df_replies = pd.DataFrame(self._pending_replies)
+                    save_records(df_replies, "tweet_replies")
+                    logger.info(f"💬 Auto-saved {len(df_replies)} pending replies before cooldown.")
+                    self._pending_replies.clear()
+            except Exception as e:
+                logger.error(f"❌ Failed to save pending data before cooldown: {e}")
+            
             time.sleep(self.cooldown_time)
             self.rate_limit_hits = 0  # reset sau khi nghỉ
             return False
