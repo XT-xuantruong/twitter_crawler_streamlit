@@ -1,12 +1,12 @@
 # ==========================================================
 # Stage 1: Builder
 # ==========================================================
-FROM python:3.11-slim AS builder
+FROM python:3.11 AS builder
 
 WORKDIR /app
 
 # -------------------------------
-# Install system deps for Playwright + ODBC driver
+# Install system dependencies
 # -------------------------------
 RUN apt-get update && apt-get install -y \
     curl wget unzip gnupg apt-transport-https ca-certificates \
@@ -18,28 +18,30 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------
-# Install Python deps
+# Install Python dependencies
 # -------------------------------
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Install Playwright browsers
+# Install Playwright Chromium
 RUN playwright install chromium --with-deps
 
 
 # ==========================================================
 # Stage 2: Runtime
 # ==========================================================
-FROM python:3.11-slim
+FROM python:3.11
 
 WORKDIR /app
 
+# Copy runtime deps
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libodbc* /usr/lib/x86_64-linux-gnu/
 COPY . .
 
 ENV PYTHONUNBUFFERED=1 \
-    ACCEPT_EULA=Y
+    ACCEPT_EULA=Y \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 EXPOSE 8501
 
