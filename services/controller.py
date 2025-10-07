@@ -1,5 +1,5 @@
 import pandas as pd
-import time, logging
+import time, logging, traceback
 from queue import Queue
 from typing import Dict, Any
 
@@ -35,12 +35,16 @@ class TwitterCrawlerController:
         self.retry_queue = Queue()
         self.max_retry = 3
         self.rate_limit_hits = 0
-        self.cooldown_time = 15 * 60  # 15 phút cooldown khi hết account
+        self.cooldown_time = 15 * 60  # 15 phút cooldown khi hết tài khoản
 
-        if not self.accounts: 
+        # Bộ nhớ tạm để lưu dữ liệu trước cooldown
+        self._pending_tweets = []
+        self._pending_replies = []
+
+        if not self.accounts:
             raise ValueError("❌ No accounts configured in sidebar!")
 
-        # set first account
+        # khởi tạo account đầu tiên
         self._set_current_account(0)
 
     # ===========================================================
@@ -51,20 +55,19 @@ class TwitterCrawlerController:
             index = 0
         self.account_index = index
         acc = self.accounts[index]
-        logger.info(f"👉 Using Account #{index+1} (cookie={acc.get('cookie_path')})")
+        logger.info(f"👉 Using Account #{index + 1} (cookie={acc.get('cookie_path')})")
 
         self.cookies_mgr = CookiesManager([acc["cookie_path"]])
         self.bearer = acc.get("bearer", "")
 
     def _rotate_account(self):
-        """Switch to the next account; if all exhausted → pause"""
+        """Switch to next account; if all exhausted → enter cooldown"""
         if not self.auto_rotate or len(self.accounts) <= 1:
             return False
 
         self.account_index = (self.account_index + 1) % len(self.accounts)
         acc = self.accounts[self.account_index]
-        logger.warning(f"⚠️ Switching to Account #{self.account_index+1} due to error...")
-
+        logger.warning(f"⚠️ Switching to Account #{self.account_index + 1} due to error...")
         self._set_current_account(self.account_index)
         time.sleep(3)
 
@@ -75,27 +78,29 @@ class TwitterCrawlerController:
 
             # 🧩 SAVE PROGRESS trước khi nghỉ cooldown
             try:
-                if hasattr(self, "_pending_tweets") and self._pending_tweets:
+                if self._pending_tweets:
                     df_tweets = pd.DataFrame(self._pending_tweets)
                     save_records(df_tweets, "tweets")
                     logger.info(f"💾 Auto-saved {len(df_tweets)} pending tweets before cooldown.")
                     self._pending_tweets.clear()
 
-                if hasattr(self, "_pending_replies") and self._pending_replies:
+                if self._pending_replies:
                     df_replies = pd.DataFrame(self._pending_replies)
                     save_records(df_replies, "tweet_replies")
                     logger.info(f"💬 Auto-saved {len(df_replies)} pending replies before cooldown.")
                     self._pending_replies.clear()
             except Exception as e:
                 logger.error(f"❌ Failed to save pending data before cooldown: {e}")
-            
+
+            # 💤 Cooldown nghỉ
+            logger.warning(f"⏳ Cooling down for {self.cooldown_time / 60:.0f} minutes...")
             time.sleep(self.cooldown_time)
-            self.rate_limit_hits = 0  # reset sau khi nghỉ
+            self.rate_limit_hits = 0
             return False
         return True
 
     # ===========================================================
-    # MAIN PIPELINE: SEARCH FLOW
+    # MAIN PIPELINE
     # ===========================================================
     def run_full_pipeline(self, query: str, limit: int = 300, batch_size: int = 100):
         """Run full crawler pipeline: search → GraphQL enrich → save"""
@@ -120,7 +125,7 @@ class TwitterCrawlerController:
         logger.info("✅ Pipeline completed successfully.")
 
     # ===========================================================
-    # GRAPHQL ENRICHMENT
+    # GRAPHQL DETAIL ENRICHMENT
     # ===========================================================
     def _process_graphql_batch(self, df: pd.DataFrame):
         tweets_to_update, replies_to_save = [], []
@@ -138,8 +143,10 @@ class TwitterCrawlerController:
 
                 if main_tweet:
                     tweets_to_update.append(main_tweet)
+                    self._pending_tweets.append(main_tweet)
                 if replies:
                     replies_to_save.extend(replies)
+                    self._pending_replies.extend(replies)
 
                 logger.info(f"🧩 Enriched {tid} — {len(replies)} replies")
 
@@ -149,24 +156,21 @@ class TwitterCrawlerController:
                     logger.error(f"[RateLimit/Auth] {tid}: {e}")
                     rotated = self._rotate_account()
                     if not rotated:
-                        # 🧱 FLUSH TẠM DỮ LIỆU TRƯỚC KHI NGHỈ
+                        # Cooldown kích hoạt → flush dữ liệu tạm
                         if tweets_to_update:
                             save_records(pd.DataFrame(tweets_to_update), "tweets")
-                            logger.info(f"💾 Flushed {len(tweets_to_update)} tweets before cooldown.")
                             tweets_to_update.clear()
                         if replies_to_save:
                             save_records(pd.DataFrame(replies_to_save), "tweet_replies")
-                            logger.info(f"💾 Flushed {len(replies_to_save)} replies before cooldown.")
                             replies_to_save.clear()
-
                         logger.warning("🕒 Cooldown active, pausing enrichment temporarily...")
-                        return  # ⛔ Dừng hẳn batch này (giữ nguyên retry queue)
+                        return
                 else:
                     logger.error(f"[GraphQL ERROR] {tid}: {e}")
                     self.retry_queue.put({"tweet_id": tid, "attempts": 1})
                 continue
 
-        # ✅ SAVE SAU KHI XONG BATCH
+        # ✅ SAVE batch hiện tại
         if tweets_to_update:
             save_records(pd.DataFrame(tweets_to_update), "tweets")
             logger.info(f"💾 Updated {len(tweets_to_update)} tweets")
@@ -192,7 +196,7 @@ class TwitterCrawlerController:
             try:
                 data = fetch_tweet_detail(
                     tid,
-                    self.cookies_mgr,  # type: ignore
+                    self.cookies_mgr,
                     bearer=self.bearer,
                     gql_key=self.gql_detail_key
                 )
