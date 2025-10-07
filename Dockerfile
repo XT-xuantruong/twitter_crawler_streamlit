@@ -6,20 +6,15 @@ FROM python:3.11-slim AS builder
 WORKDIR /app
 
 # -------------------------------
-# Install system deps for Playwright + SQL Server ODBC
+# Install system deps for Playwright + ODBC driver
 # -------------------------------
 RUN apt-get update && apt-get install -y \
     curl wget unzip gnupg apt-transport-https ca-certificates \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
-    libxrandr2 libgbm1 libasound2 \
-    && mkdir -p /etc/apt/keyrings \
-    && curl https://packages.microsoft.com/keys/microsoft.asc \
-        | gpg --dearmor > /etc/apt/keyrings/microsoft.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/11/prod stable main" \
-        > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update && ACCEPT_EULA=Y apt-get install -y \
-        msodbcsql18 unixodbc-dev gcc g++ \
+    libxrandr2 libgbm1 libasound2 unixodbc-dev gcc g++ \
+    && wget -q https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_18.3.2.1-1_amd64.deb \
+    && ACCEPT_EULA=Y dpkg -i msodbcsql18_18.3.2.1-1_amd64.deb || apt-get -fy install \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------
@@ -28,7 +23,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Install Playwright browsers (Chromium only)
+# Install Playwright browsers
 RUN playwright install chromium --with-deps
 
 
@@ -39,11 +34,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy runtime deps from builder
 COPY --from=builder /usr/local /usr/local
-COPY --from=builder /opt/microsoft /opt/microsoft
-COPY --from=builder /etc/apt/keyrings/microsoft.gpg /etc/apt/keyrings/microsoft.gpg
-COPY --from=builder /etc/apt/sources.list.d/mssql-release.list /etc/apt/sources.list.d/mssql-release.list
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libodbc* /usr/lib/x86_64-linux-gnu/
 COPY . .
 
