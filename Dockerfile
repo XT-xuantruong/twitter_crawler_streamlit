@@ -12,10 +12,13 @@ RUN apt-get update && apt-get install -y \
     curl wget unzip gnupg apt-transport-https ca-certificates \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
-    libxrandr2 libgbm1 libasound2 \
-    && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
-    curl https://packages.microsoft.com/config/debian/12/prod.list > /etc/apt/sources.list.d/mssql-release.list && \
-    apt-get update && ACCEPT_EULA=Y apt-get install -y \
+    libxrandr2 libgbm1 libasound2 software-properties-common \
+    && mkdir -p /etc/apt/keyrings \
+    && curl https://packages.microsoft.com/keys/microsoft.asc \
+        | gpg --dearmor > /etc/apt/keyrings/microsoft.gpg \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/12/prod stable main" \
+        > /etc/apt/sources.list.d/mssql-release.list \
+    && apt-get update && ACCEPT_EULA=Y apt-get install -y \
         msodbcsql18 unixodbc-dev gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
@@ -36,11 +39,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# -------------------------------
-# Copy dependencies & runtime binaries from builder
-# -------------------------------
+# Copy runtime deps
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /opt/microsoft /opt/microsoft
+COPY --from=builder /etc/apt/keyrings/microsoft.gpg /etc/apt/keyrings/microsoft.gpg
 COPY --from=builder /etc/apt/sources.list.d/mssql-release.list /etc/apt/sources.list.d/mssql-release.list
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libodbc* /usr/lib/x86_64-linux-gnu/
 COPY . .
@@ -50,7 +52,4 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8501
 
-# -------------------------------
-# Run the app
-# -------------------------------
 CMD ["streamlit", "run", "app.py", "--server.port=8501"]
