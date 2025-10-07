@@ -6,7 +6,7 @@ FROM python:3.11 AS builder
 WORKDIR /app
 
 # -------------------------------
-# Install system dependencies
+# Install system deps + ODBC Driver
 # -------------------------------
 RUN apt-get update && apt-get install -y \
     curl wget unzip gnupg apt-transport-https ca-certificates \
@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------
-# Install Python dependencies
+# Install Python deps
 # -------------------------------
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Install Playwright Chromium
+# Install Playwright browsers
 RUN playwright install chromium --with-deps
 
 
@@ -34,12 +34,15 @@ FROM python:3.11
 
 WORKDIR /app
 
-# Copy runtime deps
+# Copy deps
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libodbc* /usr/lib/x86_64-linux-gnu/
+COPY --from=builder /opt/microsoft/msodbcsql18 /opt/microsoft/msodbcsql18
+
+# 🔧 Register ODBC Driver dynamically
 RUN DRIVER_PATH=$(find /opt/microsoft/msodbcsql18/lib64 -name "libmsodbcsql-*.so*" | head -n 1) \
     && echo "[ODBC Driver 18 for SQL Server]\nDescription=Microsoft ODBC Driver 18 for SQL Server\nDriver=$DRIVER_PATH\nUsageCount=1" > /etc/odbcinst.ini
-    
+
 COPY . .
 
 ENV PYTHONUNBUFFERED=1 \
